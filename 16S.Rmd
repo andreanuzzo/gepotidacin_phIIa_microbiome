@@ -1,0 +1,201 @@
+---
+title: "Gepodaticin PhIIa microbiome analysis"
+author: "Andy Nuzzo, Computational Biology, GSK"
+date: "02/02/2020"
+output: 
+  html_document: 
+    df_print: kable
+    fig_height: 4
+    fig_width: 6
+    theme: cosmo
+    toc: yes
+---
+```{r setup}
+## # Uncomment this if you want to install the packages used in the session with their relative versions
+## source("renv/activate.R")
+
+library(vegan)
+library(ape)
+library(phyloseq)
+library(dummies)
+library(microbiome)
+library(picante)
+library(DESeq2)
+library(BiocParallel)
+
+library(tidyverse)
+library(data.table)
+library(ggthemes)
+library(janitor)
+library(openxlsx)
+library(ggpubr)
+```
+
+
+# Phyloseq
+## Import processed data from Qiime2 pipeline
+```{r}
+#File Paths
+biom_path <- file.path('qiime2/biom/table_wo_chl_mit.biom')
+tree_path <- file.path('qiime2/biom/tree.nwk')
+map_path <- file.path('mapping_file.txt')
+
+#Import to phyloseq table and merge into phyloseq objects
+table <- import_biom(BIOMfilename = biom_path,
+                      parseFunction = parse_taxonomy_default, 
+                      parallel = T)
+tax_table(table) <-tax_table(table)[,1:7]
+
+metadata <- import_qiime_sample_data(map_path)
+
+metadata$Visit <- factor(metadata$Visit, levels=c('Predose Day', 'Day 5', 'Follow-up'), 
+                         labels = c('Day 1', 'Day 5', 'Follow-up'), ordered = TRUE)
+
+metadata$Type <- factor(metadata$Type, levels=c('Saliva', 'Stool', 'Vaginal'), 
+                         labels = c('Pharyngeal cavity','GIT', 'Vagina'), ordered = TRUE)
+
+dummyvar <- interaction(metadata$Visit, metadata$Type)
+metadata$dummy <- dummyvar
+tree <- read_tree(tree_path)
+
+#Limit metadata to only the basic info and remove samples with NAs
+phylobj <- merge_phyloseq(table,metadata, tree)
+
+#Adjust taxonomy names (to harmonize betwen UNITE and SILVA databases)
+tax_table(phylobj) <- gsub(".*__", "", tax_table(phylobj))
+colnames(tax_table(phylobj)) <- c("Kingdom", "Phylum", "Class", 
+                    "Order", "Family", "Genus", "Species")
+
+phylobj <- phylobj %>% 
+  subset_taxa(Kingdom!='Unassigned')
+
+tax_table(phylobj) <- as.data.frame(as(tax_table(phylobj), "matrix")) %>%
+  rownames_to_column('taxaID') %>%
+  mutate_if(is.factor, as.character) %>%
+  mutate(Genus=case_when(is.na(Genus)~paste0('unassigned ', coalesce(Genus, Family, Order, Class, Phylum, Kingdom)),
+                         TRUE~Genus)) %>%
+  mutate(Phylum=case_when(is.na(Phylum)~paste0('unassigned ', coalesce(Phylum, Kingdom)),
+                         TRUE~Phylum)) %>%
+  mutate_if(is.character, as.factor) %>%
+  column_to_rownames('taxaID') %>%
+  as.matrix %>%
+  tax_table()
+
+#Log-transform sample counts (if needed)
+pslog <- transform_sample_counts(phylobj,function(x){log(1 + x)})
+```
+
+
+##Sample data summaries
+### Table S1
+
+```{r}
+## Demographics of patients with microbiome analyses
+
+original_metadata <- fread('mapping_file.txt') %>% 
+  mutate(Visit = factor(Visit, levels=c('Predose Day', 'Day 5', 'Follow-up'), 
+                         labels = c('Day 1', 'Day 5', 'Follow-up'), ordered = TRUE),
+         Type = factor(Type, levels=c('Saliva', 'Stool', 'Vaginal'), 
+                         labels = c('Pharyngeal cavity','GIT', 'Vagina'), ordered = TRUE))
+
+##Summary of samples collected and passing quality control for subsequent biostatistical analyses.
+qc_filtered_metadata <- data.frame(sample_data(phylobj))
+
+original_metadata %>% 
+  select(`#SampleID`, Type, Visit, ScreenID) %>% 
+  left_join(qc_filtered_metadata %>% 
+              select(X.SampleID, Type, Visit, ScreenID), 
+            by=c('#SampleID'='X.SampleID', 'Type', 'Visit')) %>% 
+ group_by(Type, Visit) %>% 
+  summarize(Collected=sum(!is.na(ScreenID.x)),
+            `Passed QC`=sum(!is.na(ScreenID.y))) %>% 
+  ungroup %>% 
+  adorn_totals('row')
+
+
+```
+
+##Phylum barplots
+### Fig1a
+```{r, fig.height=6, fig.width=9}
+phylorel2 <- merge_samples(phylobj, 'dummy')
+sample_data(phylorel2)$Visit <- levels(dummyvar) %>% str_split('\\.', n = 2, simplify = TRUE) %>% .[,1]
+sample_data(phylorel2)$Type <- levels(dummyvar) %>% str_split('\\.', n = 2, simplify = TRUE) %>% .[,2]
+sample_data(phylorel2)$Visit  <- factor(sample_data(phylorel2)$Visit, levels=c('Day 1', 'Day 5', 'Follow-up'), ord=TRUE)
+phylorel2 <- transform_sample_counts(phylorel2, function(x) 100 * x/sum(x))
+
+Fig1 <- plot_bar(phylorel2, "Visit", fill = "Phylum")+
+  facet_wrap(Type~.) +
+ geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack")+
+  ylab('Relative abundance')+
+  theme_minimal() +
+  theme(axis.text.x  = element_text(size=12, vjust=0.5, angle = 90),
+        axis.text.y = element_text(size=12),
+        axis.title  = element_text(size=13),
+        strip.text = element_text(size=15),
+        legend.text = element_text(size=15), legend.position = 'right') +
+  scale_fill_tableau(palette = 'Tableau 20') +
+  scale_color_tableau(palette = 'Tableau 20') +
+  guides(fill=guide_legend(ncol=1))+ 
+  scale_x_discrete(labels=c("Day 1", "Day 5", "Follow-up"))
+
+Fig1
+
+```
+
+
+## Alpha Diversity
+## Fig1b
+```{r, fig.width=7, message=F}
+comp <- list(c('Day 5','Day 1'),
+             c('Follow-up','Day 1'))
+
+div.df <- estimate_richness(phylobj, measures = c('Observed', 'Chao1', 'Shannon')) %>% 
+  bind_cols(dominance(phylobj)) %>% 
+  bind_cols(pd(t(otu_table(phylobj)), phy_tree(phylobj), include.root = F))%>% 
+  bind_cols(data.frame(sample_data(phylobj))) 
+
+Fig1b <- div.df %>% 
+  pivot_longer(c(#Observed, Chao1, Shannon, 
+    dbp, PD)) %>% 
+  mutate(name=factor(name, 
+                     levels=c(#'Observed', 'Chao1', 'Shannon', 
+                     'dbp', 'PD'), 
+                     ordered = T, 
+                     labels = c(#'Observed', 'Chao1', 'Shannon', 
+                     'Berger-Parker', "Faith's PD"))) %>% 
+  ggplot()+
+  aes(x = Visit, 
+      color = Type, 
+      y = value) + 
+  geom_jitter() +
+  geom_boxplot(alpha=.5) + 
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+        axis.text.y  = element_text(size = 15))+
+  scale_color_manual(
+      values = c(Vagina="#56B4E9", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+      ) + 
+  theme(legend.position="none") +
+  facet_wrap(~Type+name, scales = 'free_y', ncol = 15)+
+  stat_compare_means(aes(label = ..p.signif..), comparisons = comp, method='wilcox',p.adjust.method='BH')
+
+
+div.df %>% 
+  group_by(ScreenID, Type) %>% 
+  filter(n_distinct(Visit)>2) %>% 
+  pivot_longer(Visit) %>% 
+  pivot_longer(c(PD, dbp), names_to = 'facets', values_to = 'divs') %>% 
+  ggpaired(x='value', y='divs', color = 'Type', 
+           facet.by = c('facets', 'Type'), id = 'ScreenID', 
+           line.size = .4, line.color = 'grey', scales='free')+
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+        axis.text.y  = element_text(size = 15))+
+  scale_color_manual(
+    values = c(Vagina="#56B4E9", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+  ) + 
+  theme(legend.position="none")+
+  stat_compare_means(paired=T, method = 'wilcox', label = 'p.signif')+ 
+  stat_compare_means(aes(label = ..p.signif..), comparisons = comp, method='wilcox', p.adjust.method='BH')
+```
