@@ -9,6 +9,8 @@ output:
     fig_width: 6
     theme: cosmo
     toc: yes
+editor_options: 
+  chunk_output_type: console
 ---
 ```{r setup}
 ## # Uncomment this if you want to install the packages used in the session with their relative versions
@@ -29,6 +31,10 @@ library(ggthemes)
 library(janitor)
 library(openxlsx)
 library(ggpubr)
+library(patchwork)
+
+set.seed(42)
+dir.create('manuscript_files')
 ```
 
 
@@ -145,7 +151,7 @@ Fig1
 
 
 ## Alpha Diversity
-## Fig1b
+### Fig1b
 ```{r, fig.width=7, message=F}
 comp <- list(c('Day 5','Day 1'),
              c('Follow-up','Day 1'))
@@ -155,47 +161,547 @@ div.df <- estimate_richness(phylobj, measures = c('Observed', 'Chao1', 'Shannon'
   bind_cols(pd(t(otu_table(phylobj)), phy_tree(phylobj), include.root = F))%>% 
   bind_cols(data.frame(sample_data(phylobj))) 
 
-Fig1b <- div.df %>% 
-  pivot_longer(c(#Observed, Chao1, Shannon, 
-    dbp, PD)) %>% 
-  mutate(name=factor(name, 
-                     levels=c(#'Observed', 'Chao1', 'Shannon', 
-                     'dbp', 'PD'), 
-                     ordered = T, 
-                     labels = c(#'Observed', 'Chao1', 'Shannon', 
-                     'Berger-Parker', "Faith's PD"))) %>% 
-  ggplot()+
-  aes(x = Visit, 
-      color = Type, 
-      y = value) + 
-  geom_jitter() +
-  geom_boxplot(alpha=.5) + 
-  theme_minimal() +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
-        axis.text.y  = element_text(size = 15))+
-  scale_color_manual(
-      values = c(Vagina="#56B4E9", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
-      ) + 
-  theme(legend.position="none") +
-  facet_wrap(~Type+name, scales = 'free_y', ncol = 15)+
-  stat_compare_means(aes(label = ..p.signif..), comparisons = comp, method='wilcox',p.adjust.method='BH')
+Fig1b <- map(levels(div.df$Type),
+             ~div.df %>% 
+               filter(Type==.x) %>% 
+                pivot_longer(c(#Observed, Chao1, Shannon, 
+                  dbp, PD)) %>% 
+                mutate(name=factor(name, 
+                                   levels=c(#'Observed', 'Chao1', 'Shannon', 
+                                   'dbp', 'PD'), 
+                                   ordered = T, 
+                                   labels = c(#'Observed', 'Chao1', 'Shannon', 
+                                   'Berger-Parker', "Faith's PD"))) %>% 
+                ggplot()+
+                aes(x = Visit, 
+                    color = Type, 
+                    y = value) + 
+                geom_jitter() +
+                geom_boxplot(alpha=.5) + 
+                theme_minimal() +
+                theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+                      axis.text.y  = element_text(size = 15))+
+                scale_color_manual(
+                    values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+                    ) + 
+                theme(legend.position="none") +
+                facet_wrap(~name, scales = 'free_y', ncol = 15)+
+                stat_compare_means(aes(label = ..p.signif..), 
+                                   comparisons = comp, method='wilcox',p.adjust.method='BH')+
+                stat_compare_means(paired=T, method = 'kruskal', label.y.npc = 'bottom', label = 'p.format')+
+               theme(plot.title = element_text(hjust = 0.5))+
+               labs(title=.x, 
+                    y='Alpha Diversity Measure', 
+                    x='')
+             ) %>% 
+  wrap_plots(., ncol=3)
 
 
-div.df %>% 
-  group_by(ScreenID, Type) %>% 
-  filter(n_distinct(Visit)>2) %>% 
-  pivot_longer(Visit) %>% 
-  pivot_longer(c(PD, dbp), names_to = 'facets', values_to = 'divs') %>% 
-  ggpaired(x='value', y='divs', color = 'Type', 
-           facet.by = c('facets', 'Type'), id = 'ScreenID', 
-           line.size = .4, line.color = 'grey', scales='free')+
-  theme_minimal() +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
-        axis.text.y  = element_text(size = 15))+
-  scale_color_manual(
-    values = c(Vagina="#56B4E9", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
-  ) + 
-  theme(legend.position="none")+
-  stat_compare_means(paired=T, method = 'wilcox', label = 'p.signif')+ 
-  stat_compare_means(aes(label = ..p.signif..), comparisons = comp, method='wilcox', p.adjust.method='BH')
+# div.df %>% 
+#   group_by(ScreenID, Type) %>% 
+#   filter(n_distinct(Visit)>2) %>% 
+#   pivot_longer(Visit) %>% 
+#   pivot_longer(c(PD, dbp), names_to = 'facets', values_to = 'divs') %>% 
+#   ggpaired(x='value', y='divs', color = 'Type', 
+#            facet.by = c('facets', 'Type'), id = 'ScreenID', 
+#            line.size = .4, line.color = 'grey', scales='free')+
+#   theme_minimal() +
+#   theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+#         axis.text.y  = element_text(size = 15))+
+#   scale_color_manual(
+#     values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+#   ) + 
+#   theme(legend.position="none")+
+#   stat_compare_means(paired=T, method = 'wilcox', label = 'p.signif')+ 
+#   stat_compare_means(aes(label = ..p.signif..), comparisons = comp, method='wilcox', p.adjust.method='BH')
 ```
+
+## Beta Diversity
+### Fig2a
+```{r, fig.width=6, fig.height=2}
+ordplots.pcoa <- list()
+for(.x in levels(original_metadata$Type)){
+  p <- subset_samples(pslog, Type==.x)%>% 
+    plot_ordination(physeq = .,
+                    ordination = ordinate(., "PCoA", distance = "wunifrac"),
+                    color = "Visit", 
+                    title = .x)+
+    theme(legend.position="bottom", 
+          axis.text.x = element_text(size=12), 
+          axis.text.y = element_text(size=12), 
+          legend.text = element_text(size=12),
+          plot.title=element_text(size=18)) + 
+    geom_point(size=3, aes(shape=Type)) +
+    scale_colour_pander(labels=c("Day 1", "Day 5", "Follow-up"))+
+  scale_shape_manual(values=c(GIT=15, 
+                              Vagina=16, 
+                              `Pharyngeal cavity`=17), 
+                     guide=FALSE)+
+    theme_minimal()
+  ordplots.pcoa <- c(ordplots.pcoa, list(p))
+}
+
+Fig2a <- wrap_plots(ordplots.pcoa, ncol=3)+
+  plot_layout(guides='collect') &
+  theme(legend.position='bottom')
+```
+### Fig2b
+```{r}
+Fig2b <- phyloseq::distance(pslog, method = 'wunifrac', type = 'PCoA') %>% 
+  as.matrix %>% 
+  as.data.frame %>% 
+  rownames_to_column %>% 
+  pivot_longer(-rowname) %>% 
+  drop_na %>% 
+  left_join(original_metadata %>%
+              select(sample=`#SampleID`, 
+                     Visit, Type), 
+            by=c('rowname'='sample')) %>% 
+  left_join(original_metadata %>%
+              select(sample=`#SampleID`, 
+                     Visit, Type), 
+            by=c('name'='sample')) %>% 
+  filter(Type.x==Type.y) %>% 
+  mutate(comparison = paste0(Visit.x, ' : ', Visit.y)) %>% 
+  filter(grepl('Day 1 :', comparison)) %>% 
+  ggplot()+
+  aes(x=comparison, y=value, color=Type.x) + 
+  geom_jitter(aes(shape=Type.x)) +
+  geom_violin(alpha=.5) + 
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+        axis.text.y  = element_text(size = 15))+
+  scale_color_manual(
+      values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+      )+
+  scale_shape_manual(values=c(GIT=15, 
+                              Vagina=16, 
+                              `Pharyngeal cavity`=17)) + 
+  theme(legend.position="none") +
+  facet_wrap(~Type.x, scales = 'free_y', ncol = 15)+
+  stat_compare_means(aes(label = ..p.signif..), 
+                     comparisons = list(c('Day 1 : Day 1', 'Day 1 : Day 5'),
+                                        c('Day 1 : Day 1', 'Day 1 : Follow-up')),
+                     method='wilcox', p.adjust.method='BH')
+```
+
+### Fig2c
+```{r, fig.width=6, fig.height=2}
+ordplots.pcoa.nmds <- list()
+for(.x in levels(original_metadata$Type)){
+  p <- subset_samples(pslog, Type==.x)%>% 
+    plot_ordination(physeq = .,
+                    ordination = ordinate(., "NMDS", distance = "wunifrac"),
+                    color = "Visit", 
+                    title = .x)+
+    theme(legend.position="bottom", 
+          axis.text.x = element_text(size=12), 
+          axis.text.y = element_text(size=12), 
+          legend.text = element_text(size=12),
+          plot.title=element_text(size=18)) + 
+    geom_point(size=3, aes(shape=Type)) +
+    scale_colour_pander(labels=c("Day 1", "Day 5", "Follow-up"))+
+  scale_shape_manual(values=c(GIT=15, 
+                              Vagina=16, 
+                              `Pharyngeal cavity`=17), 
+                     guide=FALSE)+
+    theme_minimal()
+  ordplots.pcoa.nmds <- c(ordplots.pcoa.nmds, list(p))
+}
+
+Fig2c <- wrap_plots(ordplots.pcoa.nmds, ncol=3)+
+  plot_layout(guides='collect') &
+  theme(legend.position='bottom')
+```
+
+### Fig2d
+```{r}
+Fig2d <- phyloseq::distance(pslog, method = 'wunifrac', type = 'NMDS') %>% 
+  as.matrix %>% 
+  as.data.frame %>% 
+  rownames_to_column %>% 
+  pivot_longer(-rowname) %>% 
+  drop_na %>% 
+  left_join(original_metadata %>%
+              select(sample=`#SampleID`, 
+                     Visit, Type), 
+            by=c('rowname'='sample')) %>% 
+  left_join(original_metadata %>%
+              select(sample=`#SampleID`, 
+                     Visit, Type), 
+            by=c('name'='sample')) %>% 
+  filter(Type.x==Type.y) %>% 
+  mutate(comparison = paste0(Visit.x, ' : ', Visit.y)) %>% 
+  filter(grepl('Day 1 :', comparison)) %>% 
+  ggplot()+
+  aes(x=comparison, y=value, color=Type.x) + 
+  geom_jitter(aes(shape=Type.x)) +
+  geom_violin(alpha=.5) + 
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+        axis.text.y  = element_text(size = 15))+
+  scale_color_manual(
+      values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43"))+
+  scale_shape_manual(values=c(GIT=15, 
+                              Vagina=16, 
+                              `Pharyngeal cavity`=17)) + 
+  theme(legend.position="none") +
+  facet_wrap(~Type.x, scales = 'free_y', ncol = 15)+
+  stat_compare_means(aes(label = ..p.signif..), 
+                     comparisons = list(c('Day 1 : Day 5', 'Day 1 : Day 1'),
+                                        c('Day 1 : Follow-up', 'Day 1 : Day 1')),
+                     method='wilcox', p.adjust.method='BH')
+```
+
+### Fig2
+```{r}
+Fig2 <- ggarrange(Fig2a, Fig2b, 
+           Fig2c, Fig2d, 
+           ncol = 2, nrow = 2,
+           widths = c(3,2), labels = 'AUTO')
+```
+
+##PERMANOVA
+```{r}
+pslog.df = as(sample_data(pslog), "data.frame")
+pslog.distbray = phyloseq::distance(pslog, "wunifrac")
+adonis(pslog.distbray ~ Visit*Type, pslog.df)
+beta.Visit <- betadisper(pslog.distbray, pslog.df$Visit) 
+permutest(beta.Visit)
+beta.Type <- betadisper(pslog.distbray, pslog.df$Visit) 
+permutest(beta.Type)
+
+```
+
+### Beta dispersity
+```{r}
+
+for(.x in levels(original_metadata$Type)){
+  subset_samples(pslog, Type==.x) %>% 
+  phyloseq::distance(., method = 'wunifrac') %>% 
+    anosim(., sample_data(phylobj)$Visit[sample_data(phylobj)$Type==.x]) %>% 
+    summary()
+  
+}
+
+```
+
+## CCA
+### FigS1
+```{r}
+cca_model <- ordinate(pslog,
+                      method = "CCA",
+                      formula = ~Visit:Type)
+
+
+cca_plot <- plot_ordination(physeq = pslog, 
+                            ordination = cca_model,
+                            type = 'samples',
+                            color = "Visit"
+                            ) +
+  geom_point(aes(shape = Type))  
+
+cca_plot$data <- cca_plot$data %>% 
+  mutate(Visit=factor(Visit, levels = c('Day 1', 'Day 5', 'Follow-up'), ordered = TRUE)) %>% 
+  arrange(Visit)
+
+cca_arrowmat <- scores(cca_model, display = "bp") 
+cca_arrowdf <- data.frame(labels = rownames(cca_arrowmat), cca_arrowmat) %>%
+                  mutate(Type=str_remove(sapply(str_split(labels, ':', n=2),`[`, 2), 'Type'))%>%
+                  mutate(Visit=str_remove(sapply(str_split(labels, ':', n=2),`[`, 1), 'Visit'))
+
+cca_arrowdf$Visit <- factor(cca_arrowdf$Visit, levels = c("Day 1","Day 5","Follow-up"), ordered = T)
+levels(cca_arrowdf$Visit)[levels(cca_arrowdf$Visit)=="Day 1"] <- "Day 1"
+
+cca_arrow_map <- aes(xend = CCA1, 
+                 yend = CCA2, 
+                 x = 0, 
+                 y = 0, 
+                 color = Type,
+                 shape = NULL)
+
+cca_label_map <- aes(x = 1.3 * CCA1, 
+                 y = 1.3 * CCA2, 
+                 color = NULL, 
+                 label = Type,
+                 shape = NULL)
+
+cca_arrowhead = arrow(length = unit(0.04, "npc"), angle=20, type='closed')
+
+FigS1a <- cca_plot + 
+  facet_grid(.~Visit) +
+  geom_point(size=3, aes(shape=Type)) + 
+  geom_segment(data = cca_arrowdf, mapping = cca_arrow_map, size = .5,  
+               arrow = cca_arrowhead) +
+  ggrepel::geom_text_repel(mapping = cca_label_map, size = 4, data = cca_arrowdf, color='#2B3856') +
+ scale_shape_manual(values=c(GIT=15, 
+                            Vagina=16, 
+                            `Pharyngeal cavity`=17))+
+  scale_color_pander(limits=c(levels(cca_arrowdf$Visit), unique(cca_arrowdf$Type), 'Taxa'), 
+                     breaks=c(levels(cca_arrowdf$Visit)),
+                     labels=c("Day 1", "Day 5", "Follow-up")) +
+  theme_minimal()+
+  theme(legend.position = 'bottom')
+
+FigS1b <- scores(cca_model, display = 'sites') %>% 
+  as.data.frame %>% 
+  bind_cols(data.frame(sample_data(phylobj))) %>% 
+  pivot_longer(c(CCA1, CCA2)) %>% 
+  ggplot(aes(x=Visit, y=value, color=Type))+
+  geom_violin(alpha=.5)+
+  geom_jitter(aes(shape=Type)) +
+  facet_grid(name~Type, scales='free') +
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+        axis.text.y  = element_text(size = 15), 
+        legend.position="none")+
+  scale_color_manual(
+      values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+      ) +
+ scale_shape_manual(values=c(GIT=15, 
+                            Vagina=16, 
+                            `Pharyngeal cavity`=17)) + 
+  stat_compare_means(aes(label = ..p.signif..), 
+                     comparisons = comp, method='wilcox',p.adjust.method='BH')+
+ labs(y='CCA score', 
+      x='')
+
+FigS1 <- ggarrange(FigS1a, FigS1b, 
+                   widths = c(4,3), 
+                   labels = 'AUTO', common.legend = T)
+FigS1
+```
+
+### VIF check
+```{r}
+vif.cca(cca_model)
+```
+
+
+# DeSEQ2
+
+```{r, warning=FALSE}
+register(MulticoreParam(8))
+
+sample_data(phylobj)$Visit <- factor(sample_data(phylobj)$Visit, ordered = FALSE)
+sample_data(phylobj)$Type <- factor(sample_data(phylobj)$Type, ordered = FALSE)
+
+diagdds <-phyloseq_to_deseq2(phylobj, design = ~Visit:Type-1)
+diagdds = DESeq(diagdds, test="Wald", fitType="parametric", sfType = 'poscounts')
+
+```
+
+```{r}
+contrasts_of_interest <-list(
+  c('Visit','Day.5.TypePharyngeal.cavity','Day.1.TypePharyngeal.cavity'), 
+  c('Visit','Follow.up.TypePharyngeal.cavity','Day.1.TypePharyngeal.cavity'),
+  c('Visit','Day 5:TypeGIT','Day 1:TypeGIT'),
+  c('Visit','Follow-up:TypeGIT','Day 1:TypeGIT'),
+  c('Visit','Day 5:TypeVagina','Day 1:TypeVagina'),
+  c('Visit','Follow-up:TypeVagina','Day 1:TypeVagina')
+) 
+```
+
+### Fig3
+```{r}
+reslist <- map_dfr(contrasts_of_interest,
+                   ~results(diagdds, cooksCutoff = F,
+                            contrast = .x) %>%
+                     as.data.frame() %>% 
+                     rownames_to_column('taxa')%>% 
+                     mutate(contrast = paste0(.x, collapse=';'))
+                 )
+
+taxtab <- tax_table(phylobj) %>% 
+  as.data.frame() %>% 
+  rownames_to_column('taxa')
+
+
+Fig3 <- map(levels(original_metadata$Type),
+      ~ reslist %>% 
+        mutate(Type=case_when(grepl('TypePharyngeal.cavity', contrast)~levels(qc_filtered_metadata$Type)[1],
+                              grepl('TypeGIT', contrast)~levels(qc_filtered_metadata$Type)[2],
+                              grepl('TypeVagina', contrast)~levels(qc_filtered_metadata$Type)[3]), 
+               Visit.right = case_when(grepl('Visit;Day.5', contrast) ~ 'Day 5', 
+                                       grepl('Visit;Follow', contrast) ~ 'Follow-up'), 
+               Visit.left = 'Day 1') %>% 
+        filter(Type==.x, 
+               padj < 0.01) %>% 
+        left_join(taxtab) %>% 
+        group_by(Genus, Type) %>% 
+        mutate(ord=max(log2FoldChange, na.rm = T)) %>% 
+        ungroup %>% 
+        mutate(Genus = fct_reorder(Genus, desc(ord))) %>% 
+        ggplot(aes(x= Genus,
+                   y=log2FoldChange, color=Phylum)) + 
+        geom_linerange(aes(ymin = log2FoldChange-1.96*lfcSE, 
+                           ymax = log2FoldChange+1.96*lfcSE))+
+        geom_point(aes(size=log10(baseMean))) + 
+        labs(size='baseMean (log)', x='') +
+        geom_hline(yintercept = 0,linetype=2) + 
+        coord_flip() +
+        scale_color_tableau(limits = reslist %>% 
+                              filter(padj < 0.01) %>% 
+                              distinct(taxa) %>% 
+                              left_join(taxtab) %>% 
+                              distinct(Phylum) %>% 
+                              pull)+
+        facet_wrap(Visit.right~., scales = 'free')+
+        theme_minimal()+
+        theme(axis.text.y = element_text(face = 'italic')))
+
+Fig3 <- ggarrange(ggarrange(Fig3[[1]],
+                    Fig3[[2]],
+                    ncol = 1,
+                    heights = c(4,5),
+                    common.legend = T,
+                    legend = 'none',
+                    labels='AUTO'), 
+          Fig3[[3]], 
+          ncol=2, 
+          common.legend = T,
+          legend = 'bottom',
+          labels=c('',"C"))
+```
+
+# Targets
+## Fig4
+```{r}
+Fig4 <- phylobj %>%
+  subset_taxa(Genus %in% c('Clostridioides', 'Haemophilus', 'Neisseria', 'Staphylococcus',
+                           'Streptococcus', 'Yersinia', 'Francisella', 'Bacillus', 'Escherichia-Shigella' 
+                           )) %>%
+  tax_glom('Genus') %>%
+  transform_sample_counts(log1p) %>%
+  psmelt %>%
+  filter(Abundance >0) %>%
+  mutate(Genus= case_when(Genus=='Escherichia-Shigella'~'Escherichia- Shigella', TRUE~as.character(Genus))) %>% 
+  ggplot(aes(x=Visit, y=Abundance, fill = Visit)) +
+  geom_boxplot(alpha=.5) + 
+  geom_jitter(alpha=.2) +
+  ylab('Log Abundance') +
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size=12), 
+        strip.text = element_text(size=15), 
+        strip.text.x = element_text(face = 'italic'),
+        legend.position = 'top', legend.text = element_text(size=12)) +
+  #geom_text_repel(data=subset(p.stats, p.signif != 'ns'), inherit.aes = F, mapping = aes(x = Genus, y = 12, label = p.signif)) +
+  stat_compare_means(label = 'p.signif', comparisons = list(c('Day 1', 'Day 5'), c('Day 1', 'Follow-up')), 
+                     method='wilcox.test', p.adjust.method='BH', hide.ns = TRUE, step.increase=.2)  + 
+  stat_compare_means(aes(group = Visit), method='anova',label = "p", label.y = 15, label.x = 1) +
+  #stat_compare_means(aes(group = Visit), label = "p.format", label.y = 8.5) 
+  facet_grid(Type~Genus, labeller = labeller(Genus = label_wrap_gen(2)))+
+  scale_fill_pander(labels=c("Day 1", "Day 5", "Follow-up"))+ 
+  scale_x_discrete(labels=c("Day 1", "Day 5", "Follow-up"))
+```
+
+## Fig5
+```{r}
+Fig5 <- pslog %>%
+  subset_taxa(grepl('Enterob', Family)) %>% 
+  plot_tree(nodelabf=nodeplotboot(100,30,0), 
+            color="Genus", size="abundance", 
+            base.spacing=0.03, 
+            label.tips='Genus') +
+  facet_grid(Type~Visit) + 
+  scale_size_continuous('Log Abundance') +
+  theme_minimal()+
+  theme(legend.title = element_text(size=15),
+    legend.text = element_text(size=12, face = 'italic'),
+    strip.text=element_text(size=12)) + 
+  scale_colour_pander()+
+  xlab('Branch Length')+
+  ylab('Distance')+
+  guides(labels = FALSE)       
+```
+
+## FigS2
+```{r}
+FigS2 <- pslog %>%
+  subset_taxa(grepl('Neisseriaceae', Family)) %>% 
+  plot_tree(nodelabf=nodeplotboot(100,30,0), 
+            color="Species", size="abundance", 
+            base.spacing=0.03) +
+  facet_grid(Type~Visit) + #coord_polar(theta="y") + 
+  scale_size_continuous('Log Abundance') +
+  theme_minimal()+
+  theme(legend.title = element_text(size=15),
+    legend.text = element_text(size=12, face = 'italic'),
+        strip.text=element_text(size=12)) + 
+                scale_colour_pander()+
+  xlab('Branch Length')+
+  ylab('Distance')
+
+```
+
+## FigS3
+```{r}
+FigS3 <-pslog %>%
+  subset_taxa(grepl('Clostr', Genus)) %>% 
+  plot_tree(nodelabf=nodeplotboot(100,30,0), 
+            color="Species", size="abundance", 
+            base.spacing=0.03, 
+            label.tips='Species') +
+  facet_grid(Type~Visit) + #coord_polar(theta="y") + 
+  scale_size_continuous('Log Abundance') +
+  theme_minimal()+
+  theme(legend.title = element_text(size=15),
+    legend.text = element_text(size=12, face = 'italic'),
+        strip.text=element_text(size=12)) + 
+                scale_colour_pander()+
+  xlab('Branch Length')+
+  ylab('Distance')
+```
+
+## Data S1
+```{r}
+gsg <- t(otu_table(phylorel2)) %>% 
+  as.data.frame %>% 
+  rownames_to_column('taxa') %>% 
+  left_join(taxtab)
+
+write.xlsx(x = list(GIT = gsg %>% 
+                      select(11:17, contains('GIT')) %>% 
+                      mutate_if(is.double, ~round(., 3)) %>% 
+                      rename_at(vars(contains('GIT')), ~str_remove(.,'\\.GIT')), 
+                    `Pharyngeal cavity` = gsg %>% 
+                      select(11:17, contains('Phar')) %>% 
+                      mutate_if(is.double, ~round(., 3)) %>% 
+                      rename_at(vars(contains('Phar')), ~str_remove(.,'\\.Pharyngeal cavity')),
+                    Vagina = gsg %>% 
+                      select(11:17, contains('Vag')) %>% 
+                      mutate_if(is.double, ~round(., 3)) %>% 
+                      rename_at(vars(contains('Vag')), ~str_remove(.,'\\.Vagina'))
+               ),
+           file = 'manuscript_files/Additional_file_2_Supplementary_Data_S1.xlsx')
+```
+
+
+# Save figures
+```{r}
+ggarrange(Fig1, Fig1b, labels = 'AUTO', ncol=1) %>% 
+ggsave(., filename = 'manuscript_files/Fig1.pdf', width = 12, height = 14)
+
+ggsave(Fig2, filename = 'manuscript_files/Fig2.pdf', 
+       device = 'pdf', height = 10, width = 16)
+
+ggsave(Fig3, filename = 'manuscript_files/Fig3.pdf', 
+       device = 'pdf', height = 16, width = 25)
+
+ggsave(Fig4, filename =  'manuscript_files/Fig4.pdf', 
+       device = 'pdf', height = 8, width = 12)
+
+ggsave(Fig5, filename = 'manuscript_files/Fig5.pdf', 
+       device = 'pdf', height = 8, width = 18)
+
+ggsave(FigS1, filename = 'manuscript_files/FigS1.pdf', 
+       device = 'pdf', width = 14, height = 7)
+
+ggsave(FigS2, filename = 'manuscript_files/FigS2.pdf', 
+       device = 'pdf', height = 8, width = 18)
+
+ggsave(FigS3, filename = 'manuscript_files/FigS3.pdf', 
+       device = 'pdf', height = 8, width = 18)
+```
+
+
