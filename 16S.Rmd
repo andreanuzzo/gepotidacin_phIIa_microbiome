@@ -10,7 +10,7 @@ output:
     theme: cosmo
     toc: yes
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 ```{r setup}
 ## # Uncomment this if you want to install the packages used in the session with their relative versions
@@ -245,45 +245,6 @@ Fig2a <- wrap_plots(ordplots.pcoa, ncol=3)+
   plot_layout(guides='collect') &
   theme(legend.position='bottom')
 ```
-### Fig2b
-```{r}
-Fig2b <- phyloseq::distance(pslog, method = 'wunifrac', type = 'PCoA') %>% 
-  as.matrix %>% 
-  as.data.frame %>% 
-  rownames_to_column %>% 
-  pivot_longer(-rowname) %>% 
-  drop_na %>% 
-  left_join(original_metadata %>%
-              select(sample=`#SampleID`, 
-                     Visit, Type), 
-            by=c('rowname'='sample')) %>% 
-  left_join(original_metadata %>%
-              select(sample=`#SampleID`, 
-                     Visit, Type), 
-            by=c('name'='sample')) %>% 
-  filter(Type.x==Type.y) %>% 
-  mutate(comparison = paste0(Visit.x, ' : ', Visit.y)) %>% 
-  filter(grepl('Day 1 :', comparison)) %>% 
-  ggplot()+
-  aes(x=comparison, y=value, color=Type.x) + 
-  geom_jitter(aes(shape=Type.x)) +
-  geom_violin(alpha=.5) + 
-  theme_minimal() +
-  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
-        axis.text.y  = element_text(size = 15))+
-  scale_color_manual(
-      values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
-      )+
-  scale_shape_manual(values=c(GIT=15, 
-                              Vagina=16, 
-                              `Pharyngeal cavity`=17)) + 
-  theme(legend.position="none") +
-  facet_wrap(~Type.x, scales = 'free_y', ncol = 15)+
-  stat_compare_means(aes(label = ..p.signif..), 
-                     comparisons = list(c('Day 1 : Day 1', 'Day 1 : Day 5'),
-                                        c('Day 1 : Day 1', 'Day 1 : Follow-up')),
-                     method='wilcox', p.adjust.method='BH')
-```
 
 ### Fig2c
 ```{r, fig.width=6, fig.height=2}
@@ -309,14 +270,14 @@ for(.x in levels(original_metadata$Type)){
   ordplots.pcoa.nmds <- c(ordplots.pcoa.nmds, list(p))
 }
 
-Fig2c <- wrap_plots(ordplots.pcoa.nmds, ncol=3)+
+Fig2b <- wrap_plots(ordplots.pcoa.nmds, ncol=3)+
   plot_layout(guides='collect') &
   theme(legend.position='bottom')
 ```
 
-### Fig2d
+### Fig2c
 ```{r}
-Fig2d <- phyloseq::distance(pslog, method = 'wunifrac', type = 'NMDS') %>% 
+Fig2c <- phyloseq::distance(pslog, method = 'wunifrac', type = 'NMDS') %>% 
   as.matrix %>% 
   as.data.frame %>% 
   rownames_to_column %>% 
@@ -330,7 +291,8 @@ Fig2d <- phyloseq::distance(pslog, method = 'wunifrac', type = 'NMDS') %>%
               select(sample=`#SampleID`, 
                      Visit, Type), 
             by=c('name'='sample')) %>% 
-  filter(Type.x==Type.y) %>% 
+  filter(Type.x==Type.y, 
+         name != rowname) %>% 
   mutate(comparison = paste0(Visit.x, ' : ', Visit.y)) %>% 
   filter(grepl('Day 1 :', comparison)) %>% 
   ggplot()+
@@ -355,10 +317,15 @@ Fig2d <- phyloseq::distance(pslog, method = 'wunifrac', type = 'NMDS') %>%
 
 ### Fig2
 ```{r}
-Fig2 <- ggarrange(Fig2a, Fig2b, 
-           Fig2c, Fig2d, 
-           ncol = 2, nrow = 2,
-           widths = c(3,2), labels = 'AUTO')
+Fig2 <- ggarrange(
+  ggarrange(Fig2a, Fig2b, 
+            ncol=1, 
+            common.legend = T, 
+            labels = 'AUTO'), 
+  Fig2c, 
+  ncol = 2,
+  widths = c(3,2), 
+  labels=c('','C'))
 ```
 
 ##PERMANOVA
@@ -683,7 +650,7 @@ ggarrange(Fig1, Fig1b, labels = 'AUTO', ncol=1) %>%
 ggsave(., filename = 'manuscript_files/Fig1.pdf', width = 12, height = 14)
 
 ggsave(Fig2, filename = 'manuscript_files/Fig2.pdf', 
-       device = 'pdf', height = 10, width = 16)
+       device = 'pdf', height = 8, width = 16)
 
 ggsave(Fig3, filename = 'manuscript_files/Fig3.pdf', 
        device = 'pdf', height = 16, width = 25)
