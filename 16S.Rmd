@@ -246,7 +246,7 @@ Fig2a <- wrap_plots(ordplots.pcoa, ncol=3)+
   theme(legend.position='bottom')
 ```
 
-### Fig2c
+### Fig2b
 ```{r, fig.width=6, fig.height=2}
 ordplots.pcoa.nmds <- list()
 for(.x in levels(original_metadata$Type)){
@@ -484,7 +484,7 @@ taxtab <- tax_table(phylobj) %>%
   rownames_to_column('taxa')
 
 
-Fig3 <- map(levels(original_metadata$Type),
+Fig3 <- map(c('GIT', 'Pharyngeal cavity', 'Vagina'),
       ~ reslist %>% 
         mutate(Type=case_when(grepl('TypePharyngeal.cavity', contrast)~levels(qc_filtered_metadata$Type)[1],
                               grepl('TypeGIT', contrast)~levels(qc_filtered_metadata$Type)[2],
@@ -520,7 +520,7 @@ Fig3 <- map(levels(original_metadata$Type),
 Fig3 <- ggarrange(ggarrange(Fig3[[1]],
                     Fig3[[2]],
                     ncol = 1,
-                    heights = c(4,5),
+                    heights = c(5,4),
                     common.legend = T,
                     legend = 'none',
                     labels='AUTO'), 
@@ -653,7 +653,7 @@ ggsave(Fig2, filename = 'manuscript_files/Fig2.pdf',
        device = 'pdf', height = 8, width = 16)
 
 ggsave(Fig3, filename = 'manuscript_files/Fig3.pdf', 
-       device = 'pdf', height = 16, width = 25)
+       device = 'pdf', height = 14, width = 20)
 
 ggsave(Fig4, filename =  'manuscript_files/Fig4.pdf', 
        device = 'pdf', height = 8, width = 12)
