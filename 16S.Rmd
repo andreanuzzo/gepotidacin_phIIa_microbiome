@@ -704,4 +704,7 @@ ggsave(FigS3, filename = 'manuscript_files/FigS3.pdf',
        device = 'pdf', height = 8, width = 18)
 ```
 
+```{r}
+sessionInfo()
+```
 
