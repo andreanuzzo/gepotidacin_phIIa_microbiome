@@ -12,12 +12,12 @@ output:
 editor_options: 
   chunk_output_type: inline
 ---
-```{r setup}
+
+```{r setup, message=F}
 ## # Uncomment this if you want to install the packages used in the session with their relative versions
 ## source("renv/activate.R")
 
 library(vegan)
-library(ape)
 library(phyloseq)
 library(dummies)
 library(microbiome)
@@ -37,9 +37,10 @@ set.seed(42)
 dir.create('manuscript_files')
 ```
 
-
 # Phyloseq
+
 ## Import processed data from Qiime2 pipeline
+
 ```{r}
 #File Paths
 biom_path <- file.path('qiime2/biom/table_wo_chl_mit.biom')
@@ -91,8 +92,7 @@ tax_table(phylobj) <- as.data.frame(as(tax_table(phylobj), "matrix")) %>%
 pslog <- transform_sample_counts(phylobj,function(x){log(1 + x)})
 ```
 
-
-##Sample data summaries
+## Sample data summaries 
 ### Table S1
 
 ```{r}
@@ -121,18 +121,31 @@ original_metadata %>%
 
 ```
 
-##Phylum barplots
+## Phylum barplots
+
 ### Fig1a
+
 ```{r, fig.height=6, fig.width=9}
+
 phylorel2 <- merge_samples(phylobj, 'dummy')
-sample_data(phylorel2)$Visit <- levels(dummyvar) %>% str_split('\\.', n = 2, simplify = TRUE) %>% .[,1]
-sample_data(phylorel2)$Type <- levels(dummyvar) %>% str_split('\\.', n = 2, simplify = TRUE) %>% .[,2]
-sample_data(phylorel2)$Visit  <- factor(sample_data(phylorel2)$Visit, levels=c('Day 1', 'Day 5', 'Follow-up'), ord=TRUE)
+
+sample_data(phylorel2)$Visit <- levels(dummyvar) %>% 
+  str_split('\\.', n = 2, simplify = TRUE) %>% .[,1]
+
+sample_data(phylorel2)$Type <- levels(dummyvar) %>% 
+  str_split('\\.', n = 2, simplify = TRUE) %>% .[,2]
+
+sample_data(phylorel2)$Visit  <- factor(sample_data(phylorel2)$Visit, 
+                                        levels=c('Day 1', 'Day 5', 'Follow-up'),
+                                        ord=TRUE)
+
 phylorel2 <- transform_sample_counts(phylorel2, function(x) 100 * x/sum(x))
 
-Fig1 <- plot_bar(phylorel2, "Visit", fill = "Phylum")+
+Fig1a <- plot_bar(phylorel2, "Visit", fill = "Phylum")+
   facet_wrap(Type~.) +
- geom_bar(aes(color=Phylum, fill=Phylum), stat="identity", position="stack")+
+ geom_bar(aes(color=Phylum, fill=Phylum), 
+          stat="identity", 
+          position="stack")+
   ylab('Relative abundance')+
   theme_minimal() +
   theme(axis.text.x  = element_text(size=12, vjust=0.5, angle = 90),
@@ -145,13 +158,14 @@ Fig1 <- plot_bar(phylorel2, "Visit", fill = "Phylum")+
   guides(fill=guide_legend(ncol=1))+ 
   scale_x_discrete(labels=c("Day 1", "Day 5", "Follow-up"))
 
-Fig1
+Fig1a
 
 ```
 
-
 ## Alpha Diversity
+
 ### Fig1b
+
 ```{r, fig.width=7, message=F}
 comp <- list(c('Day 5','Day 1'),
              c('Follow-up','Day 1'))
@@ -182,13 +196,20 @@ Fig1b <- map(levels(div.df$Type),
                 theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
                       axis.text.y  = element_text(size = 15))+
                 scale_color_manual(
-                    values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+                    values = c(Vagina="#26648E", 
+                               GIT="#009E73", 
+                               `Pharyngeal cavity`="#F08E43")
                     ) + 
                 theme(legend.position="none") +
                 facet_wrap(~name, scales = 'free_y', ncol = 15)+
                 stat_compare_means(aes(label = ..p.signif..), 
-                                   comparisons = comp, method='wilcox',p.adjust.method='BH')+
-                stat_compare_means(paired=T, method = 'kruskal', label.y.npc = 'bottom', label = 'p.format')+
+                                   comparisons = comp, 
+                                   method='wilcox',
+                                   p.adjust.method='BH')+
+                # stat_compare_means(paired=T, 
+                #                    method = 'kruskal', 
+                #                    label.y.npc = 'bottom', 
+                #                    label = 'p.format')+
                theme(plot.title = element_text(hjust = 0.5))+
                labs(title=.x, 
                     y='Alpha Diversity Measure', 
@@ -197,27 +218,79 @@ Fig1b <- map(levels(div.df$Type),
   wrap_plots(., ncol=3)
 
 
-# div.df %>% 
-#   group_by(ScreenID, Type) %>% 
-#   filter(n_distinct(Visit)>2) %>% 
-#   pivot_longer(Visit) %>% 
-#   pivot_longer(c(PD, dbp), names_to = 'facets', values_to = 'divs') %>% 
-#   ggpaired(x='value', y='divs', color = 'Type', 
-#            facet.by = c('facets', 'Type'), id = 'ScreenID', 
-#            line.size = .4, line.color = 'grey', scales='free')+
-#   theme_minimal() +
-#   theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
-#         axis.text.y  = element_text(size = 15))+
-#   scale_color_manual(
-#     values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
-#   ) + 
-#   theme(legend.position="none")+
-#   stat_compare_means(paired=T, method = 'wilcox', label = 'p.signif')+ 
-#   stat_compare_means(aes(label = ..p.signif..), comparisons = comp, method='wilcox', p.adjust.method='BH')
+
+```
+
+### Fig S1
+
+```{r}
+FigS1a <- div.df %>%
+  pivot_longer(Visit) %>%
+  pivot_longer(c(Observed, Chao1, Shannon, dbp, PD), 
+               names_to = 'facets', values_to = 'divs') %>%
+  mutate(facets = factor(facets, 
+                         levels=c('Observed', 'Chao1', 'Shannon', 'dbp', 'PD'), 
+                         ordered = T, 
+                         labels = c('Observed', 'Chao1', 'Shannon', 'Berger-Parker', "Faith's PD"))) %>% 
+  ggboxplot(x='value', y='divs', color = 'Type',
+           facet.by = c('facets', 'Type'), id = 'ScreenID',
+           line.size = .4, line.color = 'grey', scales='free')+
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+        axis.text.y  = element_text(size = 15), 
+        strip.text = element_text(size=15))+
+  scale_color_manual(
+    values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+  ) +
+  theme(legend.position="none")+
+  stat_compare_means(method = 'wilcox', label = 'p.signif')+
+  stat_compare_means(aes(label = ..p.signif..), 
+                     comparisons = comp, 
+                     method='wilcox', 
+                     p.adjust.method='BH')+
+  labs(x='', 
+       y='Alpha diversity value')
+
+FigS1b <- div.df %>%
+  group_by(ScreenID, Type) %>%
+  filter(n_distinct(Visit)>2) %>%
+  pivot_longer(Visit) %>%
+  pivot_longer(c(Observed, Chao1, Shannon, dbp, PD), 
+               names_to = 'facets', values_to = 'divs') %>%
+  mutate(facets = factor(facets, 
+                         levels=c('Observed', 'Chao1', 'Shannon', 'dbp', 'PD'), 
+                         ordered = T, 
+                         labels = c('Observed', 'Chao1', 'Shannon', 'Berger-Parker', "Faith's PD"))) %>% 
+  ggpaired(x='value', y='divs', color = 'Type',
+           facet.by = c('facets', 'Type'), id = 'ScreenID',
+           line.size = .4, line.color = 'grey', scales='free')+
+  theme_minimal() +
+  theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 15),
+        axis.text.y  = element_text(size = 15), 
+        strip.text = element_text(size=15))+
+  scale_color_manual(
+    values = c(Vagina="#26648E", GIT="#009E73", `Pharyngeal cavity`="#F08E43")
+  ) +
+  theme(legend.position="none")+
+  stat_compare_means(paired=T, method = 'wilcox', label = 'p.signif')+
+  stat_compare_means(aes(label = ..p.signif..), 
+                     comparisons = comp, 
+                     method='wilcox', 
+                     p.adjust.method='BH')+
+  labs(x='', y='')
+```
+```{r}
+FigS1 <- ggarrange(FigS1a, FigS1b, 
+                   labels = 'AUTO', 
+                   common.legend = T, 
+                   legend = 'bottom', 
+                   ncol = 2)
 ```
 
 ## Beta Diversity
+
 ### Fig2a
+
 ```{r, fig.width=6, fig.height=2}
 ordplots.pcoa <- list()
 for(.x in levels(original_metadata$Type)){
@@ -247,6 +320,7 @@ Fig2a <- wrap_plots(ordplots.pcoa, ncol=3)+
 ```
 
 ### Fig2b
+
 ```{r, fig.width=6, fig.height=2}
 ordplots.pcoa.nmds <- list()
 for(.x in levels(original_metadata$Type)){
@@ -276,6 +350,7 @@ Fig2b <- wrap_plots(ordplots.pcoa.nmds, ncol=3)+
 ```
 
 ### Fig2c
+
 ```{r}
 Fig2c <- phyloseq::distance(pslog, method = 'wunifrac', type = 'NMDS') %>% 
   as.matrix %>% 
@@ -316,6 +391,7 @@ Fig2c <- phyloseq::distance(pslog, method = 'wunifrac', type = 'NMDS') %>%
 ```
 
 ### Fig2
+
 ```{r}
 Fig2 <- ggarrange(
   ggarrange(Fig2a, Fig2b, 
@@ -328,7 +404,8 @@ Fig2 <- ggarrange(
   labels=c('','C'))
 ```
 
-##PERMANOVA
+\#\#PERMANOVA
+
 ```{r}
 pslog.df = as(sample_data(pslog), "data.frame")
 pslog.distbray = phyloseq::distance(pslog, "wunifrac")
@@ -341,6 +418,7 @@ permutest(beta.Type)
 ```
 
 ### Beta dispersity
+
 ```{r}
 
 for(.x in levels(original_metadata$Type)){
@@ -354,7 +432,9 @@ for(.x in levels(original_metadata$Type)){
 ```
 
 ## CCA
-### FigS1
+
+### FigS2
+
 ```{r}
 cca_model <- ordinate(pslog,
                       method = "CCA",
@@ -395,7 +475,7 @@ cca_label_map <- aes(x = 1.3 * CCA1,
 
 cca_arrowhead = arrow(length = unit(0.04, "npc"), angle=20, type='closed')
 
-FigS1a <- cca_plot + 
+FigS2a <- cca_plot + 
   facet_grid(.~Visit) +
   geom_point(size=3, aes(shape=Type)) + 
   geom_segment(data = cca_arrowdf, mapping = cca_arrow_map, size = .5,  
@@ -410,7 +490,7 @@ FigS1a <- cca_plot +
   theme_minimal()+
   theme(legend.position = 'bottom')
 
-FigS1b <- scores(cca_model, display = 'sites') %>% 
+FigS2b <- scores(cca_model, display = 'sites') %>% 
   as.data.frame %>% 
   bind_cols(data.frame(sample_data(phylobj))) %>% 
   pivot_longer(c(CCA1, CCA2)) %>% 
@@ -433,17 +513,17 @@ FigS1b <- scores(cca_model, display = 'sites') %>%
  labs(y='CCA score', 
       x='')
 
-FigS1 <- ggarrange(FigS1a, FigS1b, 
+FigS2 <- ggarrange(FigS2a, FigS2b, 
                    widths = c(4,3), 
                    labels = 'AUTO', common.legend = T)
-FigS1
+FigS2
 ```
 
 ### VIF check
+
 ```{r}
 vif.cca(cca_model)
 ```
-
 
 # DeSEQ2
 
@@ -470,6 +550,7 @@ contrasts_of_interest <-list(
 ```
 
 ### Fig3
+
 ```{r}
 reslist <- map_dfr(contrasts_of_interest,
                    ~results(diagdds, cooksCutoff = F,
@@ -532,7 +613,9 @@ Fig3 <- ggarrange(ggarrange(Fig3[[1]],
 ```
 
 # Targets
+
 ## Fig4
+
 ```{r}
 Fig4 <- phylobj %>%
   subset_taxa(Genus %in% c('Clostridioides', 'Haemophilus', 'Neisseria', 'Staphylococcus',
@@ -563,6 +646,7 @@ Fig4 <- phylobj %>%
 ```
 
 ## Fig5
+
 ```{r}
 Fig5 <- pslog %>%
   subset_taxa(grepl('Enterob', Family)) %>% 
@@ -582,9 +666,10 @@ Fig5 <- pslog %>%
   guides(labels = FALSE)       
 ```
 
-## FigS2
+## FigS3
+
 ```{r}
-FigS2 <- pslog %>%
+FigS3 <- pslog %>%
   subset_taxa(grepl('Neisseriaceae', Family)) %>% 
   plot_tree(nodelabf=nodeplotboot(100,30,0), 
             color="Species", size="abundance", 
@@ -601,9 +686,10 @@ FigS2 <- pslog %>%
 
 ```
 
-## FigS3
+## FigS4
+
 ```{r}
-FigS3 <-pslog %>%
+FigS4 <-pslog %>%
   subset_taxa(grepl('Clostr', Genus)) %>% 
   plot_tree(nodelabf=nodeplotboot(100,30,0), 
             color="Species", size="abundance", 
@@ -621,6 +707,7 @@ FigS3 <-pslog %>%
 ```
 
 ## Data S1
+
 ```{r}
 gsg <- t(otu_table(phylorel2)) %>% 
   as.data.frame %>% 
@@ -643,10 +730,10 @@ write.xlsx(x = list(GIT = gsg %>%
            file = 'manuscript_files/Additional_file_2_Supplementary_Data_S1.xlsx')
 ```
 
-
 # Save figures
+
 ```{r}
-ggarrange(Fig1, Fig1b, labels = 'AUTO', ncol=1) %>% 
+ggarrange(Fig1a, Fig1b, labels = 'AUTO', ncol=1) %>% 
 ggsave(., filename = 'manuscript_files/Fig1.pdf', width = 12, height = 14)
 
 ggsave(Fig2, filename = 'manuscript_files/Fig2.pdf', 
@@ -662,16 +749,18 @@ ggsave(Fig5, filename = 'manuscript_files/Fig5.pdf',
        device = 'pdf', height = 8, width = 18)
 
 ggsave(FigS1, filename = 'manuscript_files/FigS1.pdf', 
-       device = 'pdf', width = 14, height = 7)
+       device = 'pdf', width = 18, height = 21)
 
 ggsave(FigS2, filename = 'manuscript_files/FigS2.pdf', 
-       device = 'pdf', height = 8, width = 18)
+       device = 'pdf', width = 14, height = 7)
 
 ggsave(FigS3, filename = 'manuscript_files/FigS3.pdf', 
+       device = 'pdf', height = 8, width = 18)
+
+ggsave(FigS4, filename = 'manuscript_files/FigS4.pdf', 
        device = 'pdf', height = 8, width = 18)
 ```
 
 ```{r}
 sessionInfo()
 ```
-
